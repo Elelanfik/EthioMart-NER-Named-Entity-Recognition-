@@ -1,80 +1,55 @@
-from bs4 import BeautifulSoup
+import os
 import pandas as pd
+from bs4 import BeautifulSoup
 
-def extract_messages_from_html(html_file, output_csv):
+def parse_html_to_messages(html_file):
     """
-    Extracts messages from an HTML file and saves them to a CSV file.
-
+    Parse a single HTML file and extract messages.
     Args:
         html_file (str): Path to the HTML file.
-        output_csv (str): Path to save the output CSV file.
+    Returns:
+        list of dict: A list of dictionaries containing parsed messages.
     """
-    # Load the HTML file
-    with open(html_file, "r", encoding="utf-8") as file:
-        soup = BeautifulSoup(file, "html.parser")
-
-    # Initialize data storage
-    messages_data = []
-
-    # Extract all message blocks
-    messages = soup.find_all("div", class_="message default clearfix")
+    data = []
+    with open(html_file, 'r', encoding='utf-8') as f:
+        soup = BeautifulSoup(f, 'html.parser')
+        
+    # Find all messages in the HTML
+    messages = soup.find_all('div', class_='message')  # Adjust class name if needed
+    
     for message in messages:
-        # Extract details
-        date = message.find_previous("div", class_="body details").get_text(strip=True) if message.find_previous("div", class_="body details") else "Unknown"
-        time = message.find("div", class_="pull_right date details").get_text(strip=True) if message.find("div", class_="pull_right date details") else "Unknown"
-        sender = message.find("div", class_="from_name").get_text(strip=True) if message.find("div", class_="from_name") else "Unknown"
-        text = message.find("div", class_="text").get_text(strip=True) if message.find("div", class_="text") else "No text"
+        # Extract fields (modify as per actual HTML structure)
+        sender = message.find('div', class_='from_name').text if message.find('div', class_='from_name') else None
+        timestamp = message.find('div', class_='date').get('title') if message.find('div', class_='date') else None
+        text = message.find('div', class_='text').text if message.find('div', class_='text') else None
+        
+        data.append({'Sender': sender, 'Timestamp': timestamp, 'Message': text})
+    return data
 
-        # Parse text for specific fields
-        lines = text.split("●")
-        product_name = lines[1].strip() if len(lines) > 1 else "Unknown"
-
-        # Safely handle price extraction with a check for ':-' in the line
-        price = next((line.split(":-")[1].strip() for line in lines if "ዋጋ" in line and ":-" in line), "Unknown")
-
-        # Safely handle other fields with the same check for ':-'
-        size = next((line.split(":-")[1].strip() for line in lines if "size" in line and ":-" in line), "Unknown")
-        made_in = next((line.split(":-")[1].strip() for line in lines if "made in" in line and ":-" in line), "Unknown")
-        phone = next((line.split(":-")[1].strip() for line in lines if "ስልክ" in line and ":-" in line), "Unknown")
-        color = next((line.split(":-")[1].strip() for line in lines if "Colour" in line and ":-" in line), "Unknown")
-        contact_link = next((line.split(":-")[1].strip() for line in lines if "ለማናገር" in line and ":-" in line), "Unknown")
-        address = next((line.split(":-")[1].strip() for line in lines if "አድራሻ" in line and ":-" in line), "Unknown")
-
-        # Append the extracted data to the list
-        messages_data.append({
-            "Date": date,
-            "Time": time,
-            "Sender": sender,
-            "Product Name": product_name,
-            "Price": price,
-            "Size": size,
-            "Made In": made_in,
-            "Phone Number": phone,
-            "Color": color,
-            "Contact Link": contact_link,
-            "Address": address,
-        })
-
-    # Convert the extracted data into a DataFrame
-    df = pd.DataFrame(messages_data)
-
-    # Save as a CSV file
-    df.to_csv(output_csv, index=False, encoding="utf-8")
-    print(f"Messages extracted and saved to {output_csv}")
-
-def load_and_preview_csv(csv_file, num_rows=5):
+def extract_messages_from_html_files(html_files, output_csv):
     """
-    Loads a CSV file into a Pandas DataFrame and prints the first few rows.
+    Extract messages from multiple HTML files and save them to a CSV file.
+    Args:
+        html_files (list of str): List of paths to the HTML files.
+        output_csv (str): Path to the output CSV file.
+    """
+    all_data = []
+    for html_file in html_files:
+        all_data.extend(parse_html_to_messages(html_file))
+    
+    # Save to CSV
+    df = pd.DataFrame(all_data)
+    df.to_csv(output_csv, index=False, encoding='utf-8')
+    print(f"Messages successfully saved to {output_csv}")
 
+def load_csv_to_dataframe(csv_file):
+    """
+    Load the saved CSV file into a pandas DataFrame.
     Args:
         csv_file (str): Path to the CSV file.
-        num_rows (int): Number of rows to preview. Default is 5.
-
     Returns:
-        pd.DataFrame: Loaded DataFrame.
+        pd.DataFrame: A pandas DataFrame containing the CSV data.
     """
-    # Load the CSV file
-    df = pd.read_csv(csv_file)
-    # Print the first few rows
-    print(df.head(num_rows))
-    return df
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"CSV file not found: {csv_file}")
+    return pd.read_csv(csv_file)
